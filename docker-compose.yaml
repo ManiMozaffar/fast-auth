@@ -1,0 +1,27 @@
+version: '3'
+services:
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 9990:9990
+    depends_on:
+      - redis
+      - postgresql
+    env_file:
+      - .env
+
+  redis:
+    image: redis
+    ports:
+      - 9991:6379
+
+  postgresql:
+    image: postgres
+    volumes:
+      - ../databases/auth/pgdata:/var/lib/postgresql/data
+    ports:
+      - 9992:5432
+    env_file:
+      - pg.env
