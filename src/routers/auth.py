@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from ..controllers.auth import AuthController
 from ..core.database import DBManager, get_db
 from ..core.redis.client import RedisManager, get_redis_db
-from ..depends import get_current_user
+from ..depends import get_current_user, get_current_user_from_db
 from ..schema._in.user import UserIn
 from ..schema.out.auth import RefreshToken, Token
 from ..schema.out.user import UserOut
@@ -40,5 +40,16 @@ async def register(data: UserIn, db_session: DBManager = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserOut)
-async def me(current_user: UserOut = Depends(get_current_user)):
+async def me(current_user: UserOut = Depends(get_current_user_from_db)):
     return current_user
+
+
+@router.post("/logout")
+async def logout(
+    data: RefreshToken,
+    current_user: UserOut = Depends(get_current_user),
+    redis_db: RedisManager = Depends(get_redis_db),
+):
+    return await AuthController(None, redis_db).logout(  # type: ignore
+        current_user, **data.dict(),  # type: ignore
+    )

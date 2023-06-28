@@ -5,9 +5,10 @@ Revises:
 Create Date: 2023-06-18 22:33:49.526070
 
 """
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
+from src.core.database.sqlbase import UUID
 
 # revision identifiers, used by Alembic.
 revision = '5f60e74e0fe3'
@@ -21,7 +22,7 @@ def upgrade() -> None:
     op.create_table('users',
     sa.Column('username', sa.String(), nullable=False),
     sa.Column('password', sa.String(), nullable=False),
-    sa.Column('id', src.core.database.sqlbase.UUID(), nullable=False),
+    sa.Column('id', UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id'),

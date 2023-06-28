@@ -43,8 +43,7 @@ run: start
 
 .PHONY: start
 start: ## Starts the server
-	poetry run python pre_start/up_postgresql.py
-	poetry run python main.py
+	poetry run python src/main.py
 
 .PHONY: migrate
 migrate: ## Run the migrations

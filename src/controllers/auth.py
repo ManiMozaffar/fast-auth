@@ -62,30 +62,36 @@ class AuthController:
             if (not user) or (not self.password_handler.verify(user.password, password)):
                 raise BadRequestException("Invalid credentials")
 
-        initial_amount: None | int = await self.redis.get(name=user.id)
+        refresh_token = self.jwt_handler.encode_refresh_token(payload={
+            "sub": "refresh_token", "verify": str(user.id)
+        })
+        return Token(
+            access_token=self.jwt_handler.encode(
+                payload={"user_id": str(user.id)}
+            ),
+            refresh_token=refresh_token,
+        )
+
+    async def logout(self, user_id: str, refresh_token):
+        refresh_payload = self.jwt_handler.decode(refresh_token)
+        if not refresh_payload.get("verify") == user_id:
+            raise BadRequestException
+
+        if not self.redis:
+            raise CustomException("Database connection is not initialized")
+        initial_amount: None | int = await self.redis.get(name=user_id)
         if not initial_amount:
             initial_amount = 0
         else:
             initial_amount = int(initial_amount)
 
         if initial_amount > 15:
-            raise BadRequestException("Too many login attempts recently, please retry in 24hours")
-
-        refresh_token = self.jwt_handler.encode_refresh_token(payload={
-            "sub": "refresh_token", "verify": str(user.id)
-        })
-
+            raise BadRequestException("Too many logout attempts recently")
         await asyncio.gather(
             self.redis.set(
-                name=refresh_token, value=user.id, ex=self.jwt_handler.refresh_token_expire
+                name=refresh_token, value=user_id, ex=refresh_payload["exp"]
             ),
-            self.redis.set(name=user.id, value=initial_amount+1, ex=60*60*24)
-        )
-        return Token(
-            access_token=self.jwt_handler.encode(
-                payload={"user_id": str(user.id)}
-            ),
-            refresh_token=refresh_token,
+            self.redis.set(name=user_id, value=initial_amount+1, ex=60*60*24)
         )
 
     async def me(self, user_id) -> UserOut:
@@ -101,10 +107,8 @@ class AuthController:
             raise CustomException("Database connection is not initialized")
 
         user_id = await self.redis.get(refresh_token)
-        if not user_id:
+        if user_id:
             raise UnauthorizedException("Invalid refresh token")
-        user_id = str(user_id)
-
         return Token(
             access_token=self.jwt_handler.encode(
                 payload={"user_id": user_id}
