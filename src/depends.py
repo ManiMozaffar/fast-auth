@@ -21,7 +21,6 @@ async def get_current_user(
     user_id = token.get("user_id")
     if not user_id:
         raise ForbiddenException("Invalid Refresh Token")
-
     csrf_token = JWTHandler.decode(credentials.credentials)
     if csrf_token.get("access_token") != access_token:
         raise ForbiddenException("Invalid CSRF Token")

@@ -74,6 +74,7 @@ async def refresh_token(
         samesite="strict",
     )
     response.headers["X-CSRF-TOKEN"] = tokens.csrf_token
+    return None
 
 
 @router.post("/register")
@@ -86,13 +87,28 @@ async def me(current_user: UserOut = Depends(get_current_user_from_db)) -> UserO
     return current_user
 
 
-@router.post("/logout")
+@router.delete("/logout")
 async def logout(
-    data: RefreshToken,
-    current_user: UserOut = Depends(get_current_user),
+    response: Response,
+    request: Request,
+    current_user: str = Depends(get_current_user),
     redis_db: RedisManager = Depends(get_redis_db),
 ):
-    return await AuthController(None, redis_db).logout(  # type: ignore
-        current_user,
-        **data.dict(),  # type: ignore
+    await AuthController(None, redis_db).logout(  # type: ignore
+        request.cookies.get("Refresh-Token", ""),  # type: ignore
     )
+    response.set_cookie(
+        key="Refresh-Token",
+        value="",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
+    response.set_cookie(
+        key="Access-Token",
+        value="",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
+    return None

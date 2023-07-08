@@ -83,13 +83,12 @@ class AuthController:
             csrf_token=csrf_token,
         )
 
-    async def logout(self, user_id: str, refresh_token):
-        refresh_payload = self.jwt_handler.decode(refresh_token)
-        if not refresh_payload.get("verify") == user_id:
+    async def logout(self, refresh_token):
+        if not refresh_token:
             raise BadRequestException
-
         if not self.redis:
             raise CustomException("Database connection is not initialized")
+        await self.redis.delete(refresh_token)
 
     async def me(self, user_id) -> UserOut:
         query = self.user_repository.query_by_id(user_id)
