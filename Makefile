@@ -53,7 +53,7 @@ migrate: ## Run the migrations
 .PHONY: deploy
 deploy: ## Deploy
 	poetry run alembic upgrade head
-	poetry run python src/main.py
+	poetry run python main.py
 
 .PHONY: run
 run: ## Run

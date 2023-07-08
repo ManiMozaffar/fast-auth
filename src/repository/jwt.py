@@ -1,6 +1,5 @@
-from typing import Dict, Any
-
 from datetime import datetime, timedelta
+from typing import Any, Dict
 
 from jose import ExpiredSignatureError, JWTError, jwt
 
@@ -22,7 +21,7 @@ class JWTHandler:
     secret_key = settings.SECRET_KEY
     algorithm = settings.JWT_ALGORITHM
     access_token_expire = settings.JWT_EXPIRE_MINUTES
-    refresh_token_expire = 60*60*24*7
+    refresh_token_expire = 60 * 60 * 24 * 7
 
     @staticmethod
     def encode(payload: Dict[str, Any]) -> str:

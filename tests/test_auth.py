@@ -15,10 +15,7 @@ class TestAuth:
 
     @property
     def data(self):
-        return {
-            "username": TestAuth.username,
-            "password": TestAuth.password
-        }
+        return {"username": TestAuth.username, "password": TestAuth.password}
 
     async def test_register(self, http_client: AsyncClient):
         response = await http_client.post("/auth/register", json=self.data)
@@ -52,17 +49,16 @@ class TestAuth:
         response = await http_client.get("/auth/me", headers=bad_header)
         assert response.status_code == 403
 
+    @pytest.mark.skip("Reason: this test should be moved as loading test in CI/CD")
     async def test_spam_logins(self, http_client: AsyncClient):
         """Build time for this test is too much. ignore it in makefile."""
         responses: List[Response] = await asyncio.gather(
-           *[http_client.post("/auth/login", json=self.data) for _ in range(30)]
+            *[http_client.post("/auth/login", json=self.data) for _ in range(30)]
         )
         statuses = [response.status_code for response in responses]
         statuses.sort()
         errors = [
-            response.json().get("error")
-            for response in responses
-            if response.status_code != 200
+            response.json().get("error") for response in responses if response.status_code != 200
         ]
         assert 200 in statuses  # some request didn't block
         assert 400 in statuses  # but some did!

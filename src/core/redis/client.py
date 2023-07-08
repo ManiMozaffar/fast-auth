@@ -15,10 +15,7 @@ class RedisManager:
         self.redis = Redis(connection_pool=redis_connection_pool)
 
     def serialize(self, data):
-        if type(data) in [
-            UUID,
-            _UUID
-        ]:
+        if type(data) in [UUID, _UUID]:
             data = str(data)
         return data
 
@@ -26,6 +23,11 @@ class RedisManager:
         if type(data) is bytes:
             data = data.decode("utf-8")
         return data
+
+    async def ttl(self, name) -> Any:
+        name = self.serialize(name)
+        result: int = await self.redis.ttl(name)
+        return result
 
     async def get(self, name) -> Any:
         name = self.serialize(name)
@@ -37,6 +39,12 @@ class RedisManager:
         name = self.serialize(name)
         value = self.serialize(value)
         result = await self.redis.set(name, value, ex)
+        result = self.deserialize(result)
+        return result
+
+    async def delete(self, name) -> Any:
+        name = self.serialize(name)
+        result = await self.redis.delete(name)
         result = self.deserialize(result)
         return result
 

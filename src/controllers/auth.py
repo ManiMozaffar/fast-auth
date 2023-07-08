@@ -1,8 +1,7 @@
 import asyncio
 
 from ..core.database import DBManager
-from ..core.exceptions import (BadRequestException, CustomException,
-                               UnauthorizedException)
+from ..core.exceptions import BadRequestException, CustomException, UnauthorizedException
 from ..core.redis.client import RedisManager
 from ..repository.jwt import JWTHandler
 from ..repository.password import PasswordHandler
@@ -62,14 +61,26 @@ class AuthController:
             if (not user) or (not self.password_handler.verify(user.password, password)):
                 raise BadRequestException("Invalid credentials")
 
-        refresh_token = self.jwt_handler.encode_refresh_token(payload={
-            "sub": "refresh_token", "verify": str(user.id)
-        })
+        refresh_token = self.jwt_handler.encode_refresh_token(
+            payload={"sub": "refresh_token", "verify": str(user.id)}
+        )
+        access_token = self.jwt_handler.encode(
+            payload={"sub": "access_token", "user_id": str(user.id)}
+        )
+        csrf_token = self.jwt_handler.encode_refresh_token(
+            payload={
+                "sub": "csrf_token",
+                "refresh_token": refresh_token,
+                "access_token": access_token,
+            }
+        )
+        await self.redis.set(
+            name=refresh_token, value=user.id, ex=self.jwt_handler.refresh_token_expire
+        )
         return Token(
-            access_token=self.jwt_handler.encode(
-                payload={"user_id": str(user.id)}
-            ),
+            access_token=access_token,
             refresh_token=refresh_token,
+            csrf_token=csrf_token,
         )
 
     async def logout(self, user_id: str, refresh_token):
@@ -79,20 +90,6 @@ class AuthController:
 
         if not self.redis:
             raise CustomException("Database connection is not initialized")
-        initial_amount: None | int = await self.redis.get(name=user_id)
-        if not initial_amount:
-            initial_amount = 0
-        else:
-            initial_amount = int(initial_amount)
-
-        if initial_amount > 15:
-            raise BadRequestException("Too many logout attempts recently")
-        await asyncio.gather(
-            self.redis.set(
-                name=refresh_token, value=user_id, ex=refresh_payload["exp"]
-            ),
-            self.redis.set(name=user_id, value=initial_amount+1, ex=60*60*24)
-        )
 
     async def me(self, user_id) -> UserOut:
         query = self.user_repository.query_by_id(user_id)
@@ -102,16 +99,33 @@ class AuthController:
             raise BadRequestException("Invalid credentials")
         return UserOut(**user._asdict())
 
-    async def refresh_token(self, refresh_token: str) -> Token:
+    async def refresh_token(self, old_refresh_token: str) -> Token:
         if not self.redis:
             raise CustomException("Database connection is not initialized")
 
-        user_id = await self.redis.get(refresh_token)
-        if user_id:
+        user_id, ttl = await asyncio.gather(
+            self.redis.get(old_refresh_token), self.redis.ttl(old_refresh_token)
+        )
+        if not user_id or len(user_id) < 5:
             raise UnauthorizedException("Invalid refresh token")
+
+        access_token = self.jwt_handler.encode(payload={"user_id": user_id})
+        refresh_token = self.jwt_handler.encode_refresh_token(
+            payload={"sub": "refresh_token", "verify": user_id}
+        )
+        csrf_token = self.jwt_handler.encode_refresh_token(
+            payload={
+                "sub": "csrf_token",
+                "refresh_token": refresh_token,
+                "access_token": access_token,
+            }
+        )
+        await asyncio.gather(
+            self.redis.set(refresh_token, user_id, ex=ttl),
+            self.redis.delete(old_refresh_token),
+        )
         return Token(
-            access_token=self.jwt_handler.encode(
-                payload={"user_id": user_id}
-            ),
+            access_token=access_token,
             refresh_token=refresh_token,
+            csrf_token=csrf_token,
         )

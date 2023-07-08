@@ -4,6 +4,7 @@ from asyncpg.exceptions._base import PostgresError  # type: ignore
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 
@@ -14,6 +15,26 @@ from .config import settings
 from .exceptions import BadRequestException
 from .logging import Logging
 from .middleware import ResponseLoggerMiddleware
+
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title="Custom schema",
+        version="1.0.0",
+        description="Auth Schema By Mani Mozaffar",
+        routes=app.routes,
+    )
+    openapi_schema["components"]["securitySchemes"] = {
+        "HTTPBearer": {"type": "http", "scheme": "bearer", "in": "headers"},
+        "CookieAuth": {"type": "apiKey", "in": "cookie", "name": "access_token"},
+        "RefreshCookieAuth": {"type": "apiKey", "in": "cookie", "name": "refresh_token"},
+    }
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
 
 
 def on_auth_error(request: Request, exc: Exception):
@@ -65,16 +86,12 @@ def make_middleware() -> List[Middleware]:
         #     backend=AuthBackend(),
         #     on_error=on_auth_error,
         # ),
-
     ]
     return middleware
 
 
 async def custom_exception_handler(request: Request, exc: CustomException):  # type: ignore
-    return JSONResponse(
-        status_code=exc.code,
-        content={"error":exc.message}
-    )
+    return JSONResponse(status_code=exc.code, content={"error": exc.message})
 
 
 def create_app() -> FastAPI:
@@ -91,6 +108,7 @@ def create_app() -> FastAPI:
     app_.add_exception_handler(CustomException, custom_exception_handler)
     app_.add_exception_handler(PostgresError, postgres_exception_handler)
     app_.add_exception_handler(IntegrityError, sqlalchemy_unique_constraint)
+    app_.openapi = custom_openapi
     return app_
 
 
