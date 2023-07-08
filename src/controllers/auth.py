@@ -11,7 +11,7 @@ from ..schema.out.user import UserOut
 
 
 class AuthController:
-    user_repository = UserRepository()
+    user_adaptor = UserRepository()
     password_handler = PasswordHandler
     jwt_handler = JWTHandler
 
@@ -19,30 +19,22 @@ class AuthController:
         self,
         db_session: DBManager,
         redis_session: RedisManager | None = None,
-        user_repository: UserRepository | None = None,
+        user_adaptor: UserRepository | None = None,
     ):
-        self.user_repository = user_repository or self.user_repository
+        self.user_adaptor = user_adaptor or self.user_adaptor
         self.db_session = db_session
         self.redis_session = redis_session
 
     async def register(self, password: str, username: str) -> UserOut:
-        user_query = self.user_repository.get_by_username(username)
-        async with self.db_session.begin() as session:
-            user = await session.scalar(user_query)
+        user = await self.user_adaptor.get_by_username(username, db_session=self.db_session)
 
         if user:
             raise BadRequestException("User already exists with this username")
 
         password = self.password_handler.hash(password)
-        create_query = self.user_repository.create(
-            password=password,
-            username=username,
+        user = await self.user_adaptor.get_and_create(
+            username=username, password=password, db_session=self.db_session
         )
-        async with self.db_session.begin() as session:
-            session.add(create_query)
-            await session.flush()
-            query = self.user_repository.query_by_username(username)
-            user = (await session.execute(query)).first()
 
         if not user:
             raise BadRequestException("Weird error, please contact the administrator")
@@ -53,13 +45,9 @@ class AuthController:
         if not self.redis_session:
             raise CustomException("Database connection is not initialized")
 
-        find_user_query = self.user_repository.get_by_username(username)
-
-        async with self.db_session.begin() as session:
-            user = await session.scalar(find_user_query)
-
-            if (not user) or (not self.password_handler.verify(user.password, password)):
-                raise BadRequestException("Invalid credentials")
+        user = await self.user_adaptor.get_by_username(username, db_session=self.db_session)
+        if (not user) or (not self.password_handler.verify(user.password, password)):
+            raise BadRequestException("Invalid credentials")
 
         refresh_token = self.jwt_handler.encode_refresh_token(
             payload={"sub": "refresh_token", "verify": str(user.id)}
@@ -91,9 +79,7 @@ class AuthController:
         await self.redis_session.delete(refresh_token)
 
     async def me(self, user_id) -> UserOut:
-        query = self.user_repository.query_by_id(user_id)
-        async with self.db_session.begin() as session:
-            user = (await session.execute(query)).first()
+        user = await self.user_adaptor.query_by_id(user_id, db_session=self.db_session)
         if not user:
             raise BadRequestException("Invalid credentials")
         return UserOut(**user._asdict())
