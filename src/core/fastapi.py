@@ -3,7 +3,6 @@ from typing import List
 from asyncpg.exceptions._base import PostgresError  # type: ignore
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware import Middleware
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
@@ -73,19 +72,7 @@ async def sqlalchemy_unique_constraint(request, exc: IntegrityError):
 
 def make_middleware() -> List[Middleware]:
     middleware = [
-        Middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        ),
         Middleware(ResponseLoggerMiddleware),
-        # Middleware(
-        #     AuthenticationMiddleware,
-        #     backend=AuthBackend(),
-        #     on_error=on_auth_error,
-        # ),
     ]
     return middleware
 
