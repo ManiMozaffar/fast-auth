@@ -7,7 +7,6 @@ from ..core.database import DBManager, get_db
 from ..core.redis.client import RedisManager, get_redis_db
 from ..depends import get_current_user, get_current_user_from_db
 from ..schema._in.user import UserIn
-from ..schema.out.auth import RefreshToken
 from ..schema.out.user import UserOut
 
 router = APIRouter(
@@ -26,7 +25,8 @@ async def login(
     redis_db: RedisManager = Depends(get_redis_db),
 ):
     tokens, _ = await asyncio.gather(
-        AuthController(db_session, redis_db, None).login(**data.dict()), asyncio.sleep(1)
+        AuthController(db_session=db_session, redis_session=redis_db).login(**data.dict()),
+        asyncio.sleep(1),
     )
     response.set_cookie(
         key="Refresh-Token",
@@ -54,7 +54,7 @@ async def refresh_token(
     user_id: str = Depends(get_current_user),
 ):
     tokens, _ = await asyncio.gather(
-        AuthController(db_session, redis_db, None).refresh_token(
+        AuthController(db_session=db_session, redis_session=redis_db).refresh_token(
             request.cookies.get("Refresh-Token", "")
         ),
         asyncio.sleep(1),
@@ -79,7 +79,7 @@ async def refresh_token(
 
 @router.post("/register")
 async def register(data: UserIn, db_session: DBManager = Depends(get_db)) -> UserOut:
-    return await AuthController(db_session, None).register(**data.dict())
+    return await AuthController(db_session=db_session).register(**data.dict())
 
 
 @router.get("/me")
@@ -94,7 +94,7 @@ async def logout(
     current_user: str = Depends(get_current_user),
     redis_db: RedisManager = Depends(get_redis_db),
 ):
-    await AuthController(None, redis_db).logout(  # type: ignore
+    await AuthController(redis_db=redis_db, db_session=None).logout(  # type: ignore
         request.cookies.get("Refresh-Token", ""),  # type: ignore
     )
     response.set_cookie(

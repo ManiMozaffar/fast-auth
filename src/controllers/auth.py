@@ -17,17 +17,17 @@ class AuthController:
 
     def __init__(
         self,
-        database: DBManager,
-        redis: RedisManager | None = None,
+        db_session: DBManager,
+        redis_session: RedisManager | None = None,
         user_repository: UserRepository | None = None,
     ):
         self.user_repository = user_repository or self.user_repository
-        self.database = database
-        self.redis = redis
+        self.db_session = db_session
+        self.redis_session = redis_session
 
     async def register(self, password: str, username: str) -> UserOut:
         user_query = self.user_repository.get_by_username(username)
-        async with self.database.begin() as session:
+        async with self.db_session.begin() as session:
             user = await session.scalar(user_query)
 
         if user:
@@ -38,7 +38,7 @@ class AuthController:
             password=password,
             username=username,
         )
-        async with self.database.begin() as session:
+        async with self.db_session.begin() as session:
             session.add(create_query)
             await session.flush()
             query = self.user_repository.query_by_username(username)
@@ -50,12 +50,12 @@ class AuthController:
         return UserOut(**user._asdict())
 
     async def login(self, username: str, password: str) -> Token:
-        if not self.redis:
+        if not self.redis_session:
             raise CustomException("Database connection is not initialized")
 
         find_user_query = self.user_repository.get_by_username(username)
 
-        async with self.database.begin() as session:
+        async with self.db_session.begin() as session:
             user = await session.scalar(find_user_query)
 
             if (not user) or (not self.password_handler.verify(user.password, password)):
@@ -70,11 +70,11 @@ class AuthController:
         csrf_token = self.jwt_handler.encode_refresh_token(
             payload={
                 "sub": "csrf_token",
-                "refresh_token": refresh_token,
-                "access_token": access_token,
+                "refresh_token": str(refresh_token),
+                "access_token": str(access_token),
             }
         )
-        await self.redis.set(
+        await self.redis_session.set(
             name=refresh_token, value=user.id, ex=self.jwt_handler.refresh_token_expire
         )
         return Token(
@@ -86,42 +86,42 @@ class AuthController:
     async def logout(self, refresh_token):
         if not refresh_token:
             raise BadRequestException
-        if not self.redis:
+        if not self.redis_session:
             raise CustomException("Database connection is not initialized")
-        await self.redis.delete(refresh_token)
+        await self.redis_session.delete(refresh_token)
 
     async def me(self, user_id) -> UserOut:
         query = self.user_repository.query_by_id(user_id)
-        async with self.database.begin() as session:
+        async with self.db_session.begin() as session:
             user = (await session.execute(query)).first()
         if not user:
             raise BadRequestException("Invalid credentials")
         return UserOut(**user._asdict())
 
     async def refresh_token(self, old_refresh_token: str) -> Token:
-        if not self.redis:
+        if not self.redis_session:
             raise CustomException("Database connection is not initialized")
 
         user_id, ttl = await asyncio.gather(
-            self.redis.get(old_refresh_token), self.redis.ttl(old_refresh_token)
+            self.redis_session.get(old_refresh_token), self.redis_session.ttl(old_refresh_token)
         )
-        if not user_id or len(user_id) < 5:
+        if not user_id or len(str(user_id)) < 5:
             raise UnauthorizedException("Invalid refresh token")
 
-        access_token = self.jwt_handler.encode(payload={"user_id": user_id})
+        access_token = self.jwt_handler.encode(payload={"user_id": str(user_id)})
         refresh_token = self.jwt_handler.encode_refresh_token(
-            payload={"sub": "refresh_token", "verify": user_id}
+            payload={"sub": "refresh_token", "verify": str(user_id)}
         )
         csrf_token = self.jwt_handler.encode_refresh_token(
             payload={
                 "sub": "csrf_token",
-                "refresh_token": refresh_token,
-                "access_token": access_token,
+                "refresh_token": str(refresh_token),
+                "access_token": str(access_token),
             }
         )
         await asyncio.gather(
-            self.redis.set(refresh_token, user_id, ex=ttl),
-            self.redis.delete(old_refresh_token),
+            self.redis_session.set(refresh_token, user_id, ex=ttl),
+            self.redis_session.delete(old_refresh_token),
         )
         return Token(
             access_token=access_token,

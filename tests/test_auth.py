@@ -26,15 +26,18 @@ class TestAuth:
     async def test_login(self, http_client: AsyncClient):
         response = await http_client.post("/auth/login", json=self.data)
         assert response.status_code == 200
-        assert "access_token" in response.json()
-        TestAuth.access_token = response.json()["access_token"]
-        TestAuth.refresh_token = response.json()["refresh_token"]
-        TestAuth.headers = {"Authorization": "Bearer " + TestAuth.access_token}
-
+        assert response.cookies.get("Access-Token") is not None
+        TestAuth.access_token = response.cookies["Access-Token"]
+        TestAuth.refresh_token = response.cookies["Refresh-Token"]
+        TestAuth.headers = {"Authorization": "Bearer " + response.headers.get("X-Csrf-Token")}
         corrupted_data = self.data.copy()
         corrupted_data["username"] = corrupted_data["username"] + "sndjsns"
         response = await http_client.post("/auth/login", json=corrupted_data)
         assert response.status_code == 400
+
+        http_client.cookies.update(
+            {"Access-Token": TestAuth.access_token, "Refresh-Token": TestAuth.refresh_token}
+        )
 
     async def test_auth_and_tokens(self, http_client: AsyncClient):
         response = await http_client.get("/auth/me", headers=TestAuth.headers)
@@ -66,12 +69,20 @@ class TestAuth:
         assert "Too many login attempts recently" in errors[0]
 
     async def test_refresh_token(self, http_client: AsyncClient):
-        await asyncio.sleep(1)
-        data = {"refresh_token": TestAuth.refresh_token}
-        response = await http_client.post("/auth/refresh", json=data)
+        response = await http_client.post("/auth/refresh", headers=TestAuth.headers)
         assert response.status_code == 200
-        assert response.json()["access_token"] != TestAuth.access_token
+        new_access_token = response.cookies.get("Access-Token")
+        new_refresh_token = response.cookies.get("Refresh-Token")
+        assert new_access_token is not None
+        assert new_refresh_token is not None
+        assert new_access_token != TestAuth.access_token
+        assert new_refresh_token != TestAuth.refresh_token
+        headers = {"Authorization": "Bearer " + response.headers.get("X-Csrf-Token")}
+        assert type(TestAuth.headers) is dict
+        assert headers["Authorization"] != TestAuth.headers.get("Authorization")
 
-        TestAuth.access_token = response.json()["access_token"]
-        response = await http_client.get("/auth/me", headers=TestAuth.headers)
+        http_client.cookies.update(
+            {"Access-Token": new_access_token, "Refresh-Token": new_refresh_token}
+        )
+        response = await http_client.get("/auth/me", headers=headers)
         assert response.status_code == 200
