@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, Request, Response
 from ..controllers.auth import AuthController
 from ..core.database import DBManager, get_db
 from ..core.redis.client import RedisManager, get_redis_db
-from ..depends import get_current_user, get_current_user_from_db
+from ..depends import get_current_user, get_current_user_from_db, get_current_user_with_refresh
 from ..schema._in.user import UserIn
-from ..schema.out.user import UserOut
+from ..schema.out.user import UserOut, UserOutRegister
 
 router = APIRouter(
     prefix="/auth",
@@ -47,14 +47,24 @@ async def login(
         httponly=True,
         samesite="strict",
     )
-    response.set_cookie(
-        key="Access-Token",
-        value=tokens.access_token,
-        secure=True,
-        httponly=True,
-        samesite="strict",
-    )
     response.headers["X-CSRF-TOKEN"] = tokens.csrf_token
+
+
+@router.post("/verify")
+async def verify(
+    response: Response,
+    request: Request,
+    code: str,
+    db_session: DBManager = Depends(get_db),
+    redis_db: RedisManager = Depends(get_redis_db),
+    user_id: str = Depends(get_current_user_with_refresh),
+):
+    assert user_id is not None
+    await AuthController(db_session=db_session, redis_session=redis_db).verify(
+        refresh_token=request.cookies.get("Refresh-Token", ""),
+        session_id=request.cookies.get("Session-Id", ""),
+        code=code,
+    )
 
 
 @router.post("/refresh")
@@ -63,12 +73,14 @@ async def refresh_token(
     request: Request,
     db_session: DBManager = Depends(get_db),
     redis_db: RedisManager = Depends(get_redis_db),
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(get_current_user_with_refresh),
 ):
+    assert user_id is not None
     start_time = time.time()
     try:
         tokens = await AuthController(db_session=db_session, redis_session=redis_db).refresh_token(
-            request.cookies.get("Refresh-Token", "")
+            old_refresh_token=request.cookies.get("Refresh-Token", ""),
+            session_id=request.cookies.get("Session-Id", ""),
         )
         elapsed_time = time.time() - start_time
         if elapsed_time < 1:
@@ -80,6 +92,7 @@ async def refresh_token(
             await asyncio.sleep(1 - elapsed_time)
         raise e from None
 
+    assert tokens.access_token is not None
     response.set_cookie(
         key="Refresh-Token",
         value=tokens.refresh_token,
@@ -99,7 +112,7 @@ async def refresh_token(
 
 
 @router.post("/register")
-async def register(data: UserIn, db_session: DBManager = Depends(get_db)) -> UserOut:
+async def register(data: UserIn, db_session: DBManager = Depends(get_db)) -> UserOutRegister:
     return await AuthController(db_session=db_session).register(**data.dict())
 
 

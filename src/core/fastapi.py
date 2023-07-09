@@ -13,7 +13,7 @@ from src.routers import routers
 from .config import settings
 from .exceptions import BadRequestException
 from .logging import Logging
-from .middleware import ResponseLoggerMiddleware
+from .middleware import ResponseLoggerMiddleware, SessionMiddleware
 
 
 def custom_openapi():
@@ -71,9 +71,7 @@ async def sqlalchemy_unique_constraint(request, exc: IntegrityError):
 
 
 def make_middleware() -> List[Middleware]:
-    middleware = [
-        Middleware(ResponseLoggerMiddleware),
-    ]
+    middleware = [Middleware(ResponseLoggerMiddleware), Middleware(SessionMiddleware)]
     return middleware
 
 

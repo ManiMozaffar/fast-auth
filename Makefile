@@ -43,7 +43,7 @@ run: start
 
 .PHONY: start
 start: ## Starts the server
-	poetry run python src/main.py
+	poetry run python scripts/main.py
 
 .PHONY: migrate
 migrate: ## Run the migrations
@@ -53,11 +53,11 @@ migrate: ## Run the migrations
 .PHONY: deploy
 deploy: ## Deploy
 	poetry run alembic upgrade head
-	poetry run python main.py
+	poetry run python scripts/main.py
 
 .PHONY: run
 run: ## Run
-	poetry run python src/main.py
+	poetry run python scripts/main.py
 
 
 .PHONY: rollback
@@ -73,7 +73,7 @@ reset-database: ## Rollback all migrations
 
 .PHONY: migrations 
 migrations: ## Generate a new migration
-	poetry run python makemigrate.py
+	poetry run python scripts/makemigrate.py
 
 .PHONY: celery-worker
 celery-worker: ## Start celery worker

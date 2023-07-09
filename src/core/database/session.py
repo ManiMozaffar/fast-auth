@@ -12,10 +12,7 @@ from .parser import JSONDecoder, JSONEncoder
 
 class DBManager:
     def __init__(
-        self,
-        model_base: Type[DeclarativeBase],
-        db_url: str | URL,
-        **kwargs  # type: ignore
+        self, model_base: Type[DeclarativeBase], db_url: str | URL, **kwargs  # type: ignore
     ) -> None:
         self.model_base = model_base
         self.db_url = db_url
@@ -33,9 +30,11 @@ class DBManager:
             expire_on_commit=False,
         )
 
-    async def connect(self): ...
+    async def connect(self):
+        ...
 
-    async def disconnect(self): ...
+    async def disconnect(self):
+        ...
 
     async def drop_tables(self):
         async with self.engine.begin() as conn:
@@ -59,7 +58,6 @@ SQL_DB = DBManager(
     max_overflow=20,
     json_serializer=lambda data: json.dumps(data, cls=JSONEncoder),  # type: ignore
     json_deserializer=lambda data: json.loads(data, cls=JSONDecoder),  # type: ignore
-
 )
 
 

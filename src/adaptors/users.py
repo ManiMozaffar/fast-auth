@@ -27,5 +27,5 @@ class UserAdaptor:
         return sa.select(*UserAdaptor.get_selects()).where(User.id == user_id)
 
     @staticmethod
-    def create(username: str, password: str):
-        return User(username=username, password=password)
+    def create(username: str, password: str, gauth: str):
+        return User(username=username, password=password, gauth=gauth)

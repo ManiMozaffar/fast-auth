@@ -1,7 +1,6 @@
 from sqlalchemy.orm import Mapped, mapped_column
 
-from ..core.access_controll import (Allow, Everyone, RolePrincipal,
-                                    UserPrincipal)
+from ..core.access_controll import Allow, Everyone, RolePrincipal, UserPrincipal
 from .base import SQLBase, TimestampMixin, UUIDMixin
 from .permissions import UserPermission
 
@@ -11,6 +10,7 @@ class User(SQLBase, UUIDMixin, TimestampMixin):
 
     username: Mapped[str] = mapped_column(unique=True, default=None)
     password: Mapped[str] = mapped_column(default=None)
+    gauth: Mapped[str] = mapped_column(default=None)
 
     def __acl__(self):
         basic_permissions = [UserPermission.READ, UserPermission.CREATE]

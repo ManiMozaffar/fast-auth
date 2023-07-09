@@ -3,7 +3,7 @@ from passlib.context import CryptContext
 
 class PasswordHandler:
     pwd_context = CryptContext(
-        schemes=["sha256_crypt"],
+        schemes=["bcrypt"],
         deprecated="auto",
     )
 
