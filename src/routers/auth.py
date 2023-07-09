@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -24,10 +25,21 @@ async def login(
     db_session: DBManager = Depends(get_db),
     redis_db: RedisManager = Depends(get_redis_db),
 ):
-    tokens, _ = await asyncio.gather(
-        AuthController(db_session=db_session, redis_session=redis_db).login(**data.dict()),
-        asyncio.sleep(1),
-    )
+    start_time = time.time()
+    try:
+        tokens = await AuthController(db_session=db_session, redis_session=redis_db).login(
+            **data.dict()
+        )
+        elapsed_time = time.time() - start_time
+        if elapsed_time < 1:
+            await asyncio.sleep(1 - elapsed_time)
+    except Exception as e:
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        if elapsed_time < 1:
+            await asyncio.sleep(1 - elapsed_time)
+        raise e from None
+
     response.set_cookie(
         key="Refresh-Token",
         value=tokens.refresh_token,
@@ -53,12 +65,21 @@ async def refresh_token(
     redis_db: RedisManager = Depends(get_redis_db),
     user_id: str = Depends(get_current_user),
 ):
-    tokens, _ = await asyncio.gather(
-        AuthController(db_session=db_session, redis_session=redis_db).refresh_token(
+    start_time = time.time()
+    try:
+        tokens = await AuthController(db_session=db_session, redis_session=redis_db).refresh_token(
             request.cookies.get("Refresh-Token", "")
-        ),
-        asyncio.sleep(1),
-    )
+        )
+        elapsed_time = time.time() - start_time
+        if elapsed_time < 1:
+            await asyncio.sleep(1 - elapsed_time)
+    except Exception as e:
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        if elapsed_time < 1:
+            await asyncio.sleep(1 - elapsed_time)
+        raise e from None
+
     response.set_cookie(
         key="Refresh-Token",
         value=tokens.refresh_token,
