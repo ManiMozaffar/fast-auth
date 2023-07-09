@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 from jose import ExpiredSignatureError, JWTError, jwt
@@ -38,7 +38,13 @@ class JWTHandler:
     @staticmethod
     def decode(token: str) -> dict:
         try:
-            return jwt.decode(token, JWTHandler.secret_key, algorithms=[JWTHandler.algorithm])
+            result: dict = jwt.decode(
+                token, JWTHandler.secret_key, algorithms=[JWTHandler.algorithm]
+            )
+            exp = result.get("exp")
+            if exp and datetime.utcfromtimestamp(exp) < datetime.utcnow():
+                raise JWTExpiredError
+            return result
         except ExpiredSignatureError as exception:
             raise JWTExpiredError() from exception
         except JWTError as exception:
