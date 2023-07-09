@@ -1,10 +1,12 @@
 [tool.poetry]
-name = "ftb-auth"
+name = "src"
 version = "0.1.0"
 description = ""
 authors = ["Mani <mani.mozaffar@gmail.com>"]
 readme = "README.md"
-packages = []
+packages = [
+    { include = "src" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -30,3 +32,6 @@ greenlet = "^2.0.2"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.isort]
+profile = "black"

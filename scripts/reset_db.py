@@ -1,9 +1,9 @@
 import asyncio
 
 from src.core.database import SQL_DB
-from src.models import MarketPlace, Profile, User
+from src.models import User
 
-__all__ = ["Profile", "MarketPlace", "User"]
+__all__ = ["User"]
 
 
 async def up_database():
